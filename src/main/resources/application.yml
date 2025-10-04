@@ -8,6 +8,13 @@ spring:
     username: ${RDS_USERNAME}
     password: ${RDS_PASSWORD}
 
+server:
+  forward-headers-strategy: framework
+  tomcat:
+    remoteip:
+      protocol-header: X-Forwarded-Proto
+      remote-ip-header: X-Forwarded-For
+
 
   jpa:
     properties:
