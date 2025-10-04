@@ -1,9 +1,13 @@
 spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/CSmart
-    username: ${LOCAL_DB_NAME}
-    password: ${LOCAL_DB_PW}
+#    url: jdbc:mysql://localhost:3306/CSmart
+#    username: ${LOCAL_DB_NAME}
+#    password: ${LOCAL_DB_PW}
+    url: jdbc:mysql://csmartdb.cpoeeaowebbq.ap-northeast-2.rds.amazonaws.com:3306/CSmart
+    username: ${RDS_USERNAME}
+    password: ${RDS_PASSWORD}
+
 
   jpa:
     properties:
