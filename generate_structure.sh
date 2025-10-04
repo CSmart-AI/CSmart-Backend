@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BASE_DIR=src/main/java/Capstone/FOSSistant/global
+BASE_DIR=src/main/java/Capstone/CSmart/global
 
 mkdir -p $BASE_DIR/apiPayload/code/status
 mkdir -p $BASE_DIR/apiPayload/exception/handler
