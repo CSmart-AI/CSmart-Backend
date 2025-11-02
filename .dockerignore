@@ -1,0 +1,39 @@
+# Git 관련
+.git
+.gitignore
+
+# IDE 관련
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS 관련
+.DS_Store
+Thumbs.db
+
+# 로그 파일
+*.log
+
+# 문서
+README.md
+*.md
+
+# 테스트 관련
+src/test/
+
+# 빌드 관련 (Gradle)
+.gradle/
+build/
+!build/libs/
+gradle/
+gradlew
+gradlew.bat
+
+# IDE 빌드 결과
+bin/
+out/
+
+# 임시 파일
+*.tmp
+*.temp
