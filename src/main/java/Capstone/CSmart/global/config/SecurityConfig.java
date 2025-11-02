@@ -35,18 +35,11 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(
                         authorize -> authorize
-                                .requestMatchers("/auth/**").permitAll()
-                                .requestMatchers("/member/**").permitAll()
-                                .requestMatchers("/book/**").permitAll()
-                                .requestMatchers("/category/**").permitAll()
-                                .requestMatchers("/barcode/**").permitAll()
-                                .requestMatchers("/payment/**").permitAll()
-                                .requestMatchers("/paragraph/**").permitAll()
-                                .requestMatchers("/example/**").permitAll()
-                                .requestMatchers("/", "/api-docs/**", "/api-docs/swagger-config/*", "/swagger-ui/*", "/swagger-ui/**", "/v3/api-docs/**", "/image/upload", "/image/delete").permitAll()
-                                .anyRequest().authenticated()
+                                // 모든 요청 허용 (개발 중)
+                                .anyRequest().permitAll()
                 )
-                .addFilterBefore(new JwtRequestFilter(jwtTokenProvider, principalDetailsService), UsernamePasswordAuthenticationFilter.class)
+                // JWT 필터 비활성화 (개발 중)
+                // .addFilterBefore(new JwtRequestFilter(jwtTokenProvider, principalDetailsService), UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
 
@@ -54,13 +47,15 @@ public class SecurityConfig {
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowCredentials(true);
-        config.setAllowedOriginPatterns(List.of("*"));
-        config.setAllowedOrigins(List.of(
-                "http://localhost:3000",
+        // allowedOriginPatterns 사용 (와일드카드 지원)
+        config.setAllowedOriginPatterns(List.of(
+                "http://localhost:*",
                 "https://52.78.147.166.nip.io",
                 "http://52.78.147.166.nip.io",
+                "https://52.78.147.166",
                 "http://52.78.147.166",
-                "https://52.78.147.166"
+                "https://*.nip.io",
+                "http://*.nip.io"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));

@@ -28,6 +28,15 @@ public class JwtRequestFilter extends OncePerRequestFilter {
     protected void doFilterInternal(
             HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
+        
+        String requestURI = request.getRequestURI();
+        
+        // 카카오톡 웹훅 및 인증 불필요 경로는 JWT 검증 스킵
+        if (shouldNotFilter(requestURI)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+        
         try {
             String authorizationHeader = request.getHeader("Authorization");
 
@@ -62,6 +71,18 @@ public class JwtRequestFilter extends OncePerRequestFilter {
                     "INTERNAL_SERVER_ERROR",
                     "예기치 않은 오류가 발생했습니다.");
         }
+    }
+    
+    /**
+     * JWT 필터를 건너뛸 경로 확인
+     */
+    private boolean shouldNotFilter(String requestURI) {
+        return requestURI.startsWith("/api/kakao/messages") ||
+               requestURI.startsWith("/auth/") ||
+               requestURI.startsWith("/api/gemini/") ||
+               requestURI.startsWith("/swagger-ui") ||
+               requestURI.startsWith("/v3/api-docs") ||
+               requestURI.startsWith("/actuator");
     }
 
     // JSON 응답 설정
