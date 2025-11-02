@@ -1,37 +1,65 @@
 spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-#    url: jdbc:mysql://localhost:3306/CSmart
-#    username: ${LOCAL_DB_NAME}
-#    password: ${LOCAL_DB_PW}
-    url: jdbc:mysql://csmartdb.cpoeeaowebbq.ap-northeast-2.rds.amazonaws.com:3306/CSmart?serverTimezone=Asia/Seoul&useSSL=false
+    # Docker 환경에서 사용할 MySQL 설정
+    url: jdbc:mysql://mysql:3306/CSmart?serverTimezone=Asia/Seoul&useSSL=false&allowPublicKeyRetrieval=true
     username: ${RDS_USERNAME}
     password: ${RDS_PASSWORD}
-
-server:
-  forward-headers-strategy: framework
-  tomcat:
-    remoteip:
-      protocol-header: X-Forwarded-Proto
-      remote-ip-header: X-Forwarded-For
-
+    # AWS RDS 설정 (운영 환경용)
+    # url: jdbc:mysql://csmartdb.cpoeeaowebbq.ap-northeast-2.rds.amazonaws.com:3306/CSmart?serverTimezone=Asia/Seoul&useSSL=false
+    # username: ${RDS_USERNAME}
+    # password: ${RDS_PASSWORD}
 
   jpa:
+    hibernate:
+      ddl-auto: update
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQL8Dialect
         show_sql: true
         format_sql: true
         use_sql_comments: true
-        hbm2ddl:
-          auto: update       # ※운영 환경에서는 create → update 로만 쓰세요
         default_batch_fetch_size: 1000
 
   sql:
     init:
       mode: never
 
+server:
+  port: 8080
+  forward-headers-strategy: framework
+  tomcat:
+    remoteip:
+      protocol-header: X-Forwarded-Proto
+      remote-ip-header: X-Forwarded-For
+
 jwt:
   secret: ${JWT_SECRET_KEY}
   access-token-validity: ${JWT_ACCESS_TOKEN_TIME}
   refresh-token-validity: ${JWT_REFRESH_TOKEN_TIME}
+
+# 카카오톡 웹훅 서비스 설정
+kakao:
+  webhook:
+    url: ${KAKAO_WEBHOOK_URL:http://csmart-kakaotalk:3000}
+    timeout: ${KAKAO_WEBHOOK_TIMEOUT:5000}
+
+ingest:
+  api-key: ${INGEST_API_KEY:dev-ingest-key}
+
+langgraph:
+  url: ${LANGGRAPH_URL:http://csmart-langraph:8000}
+
+gemini:
+  api-key: ${GEMINI_API_KEY}
+  url: https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent
+
+# Spring Boot Actuator (헬스체크용)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
