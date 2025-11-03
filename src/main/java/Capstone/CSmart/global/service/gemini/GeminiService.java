@@ -101,6 +101,24 @@ public class GeminiService {
                         String text = (String) parts.get(0).get("text");
                         log.info("Gemini API 응답: {}", text);
                         
+                        // 마크다운 코드 블록 제거 (```json ... ``` 형식)
+                        text = text.trim();
+                        if (text.startsWith("```")) {
+                            // 첫 번째 ``` 제거
+                            int startIndex = text.indexOf("```");
+                            if (startIndex != -1) {
+                                text = text.substring(startIndex + 3);
+                                // 언어 지정자 제거 (json, JSON 등)
+                                text = text.replaceFirst("^(json|JSON)\\s*", "");
+                            }
+                            // 마지막 ``` 제거
+                            int endIndex = text.lastIndexOf("```");
+                            if (endIndex != -1) {
+                                text = text.substring(0, endIndex);
+                            }
+                            text = text.trim();
+                        }
+                        
                         // JSON 파싱
                         return objectMapper.readValue(text, Map.class);
                     }
