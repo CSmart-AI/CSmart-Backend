@@ -26,9 +26,10 @@ src/test/
 .gradle/
 build/
 !build/libs/
-gradle/
-gradlew
-gradlew.bat
+# gradle wrapper는 빌드에 필요하므로 제외하지 않음
+# gradle/
+# gradlew
+# gradlew.bat
 
 # IDE 빌드 결과
 bin/
