@@ -19,9 +19,3 @@ public class TeacherDTO {
     private String specialization;
     private String status;
 }
-
-
-
-
-
-

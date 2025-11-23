@@ -2,10 +2,13 @@ package Capstone.CSmart.global.web.controller;
 
 import Capstone.CSmart.global.apiPayload.ApiResponse;
 import Capstone.CSmart.global.apiPayload.code.status.SuccessStatus;
+import Capstone.CSmart.global.domain.entity.Admin;
 import Capstone.CSmart.global.domain.entity.Student;
 import Capstone.CSmart.global.domain.entity.Teacher;
+import Capstone.CSmart.global.repository.AdminRepository;
 import Capstone.CSmart.global.repository.StudentRepository;
 import Capstone.CSmart.global.repository.TeacherRepository;
+import Capstone.CSmart.global.security.handler.annotation.AuthUser;
 import Capstone.CSmart.global.web.dto.Student.StudentDTO;
 import Capstone.CSmart.global.web.dto.Teacher.CreateTeacherRequestDTO;
 import Capstone.CSmart.global.web.dto.Teacher.TeacherDTO;
@@ -15,6 +18,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -29,6 +33,8 @@ public class TeacherController {
 
     private final TeacherRepository teacherRepository;
     private final StudentRepository studentRepository;
+    private final AdminRepository adminRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Operation(summary = "전체 선생님 목록 조회", description = "활성 상태인 모든 선생님 목록 조회")
     @GetMapping("/")
@@ -51,25 +57,48 @@ public class TeacherController {
         }
     }
 
-    @Operation(summary = "선생님 생성", description = "새로운 선생님 계정 생성")
+    @Operation(summary = "선생님 생성", description = "새로운 선생님 계정 생성 (Admin만 가능)")
     @PostMapping("/")
-    public ApiResponse<TeacherDTO> createTeacher(@Valid @RequestBody CreateTeacherRequestDTO request) {
+    public ApiResponse<TeacherDTO> createTeacher(
+            @AuthUser Long adminId,
+            @Valid @RequestBody CreateTeacherRequestDTO request) {
         
-        log.info("Create teacher request: name={}, email={}", request.getName(), request.getEmail());
+        log.info("Create teacher request: name={}, email={}, kakaoId={}", 
+            request.getName(), request.getEmail(), request.getKakaoId());
         
         try {
+            // Admin 존재 확인
+            Admin admin = adminRepository.findById(adminId)
+                    .orElseThrow(() -> new RuntimeException("Admin not found: " + adminId));
+            
+            // 카카오 계정 중복 확인
+            if (teacherRepository.findByKakaoId(request.getKakaoId()).isPresent()) {
+                return ApiResponse.onFailure("KAKAO_ID_ALREADY_EXISTS", 
+                    "이미 사용 중인 카카오 계정 아이디입니다.", null);
+            }
+            
+            // 비밀번호 암호화
+            String encodedPassword = passwordEncoder.encode(request.getPassword());
+            String encodedKakaoPassword = passwordEncoder.encode(request.getKakaoPassword());
+            
             Teacher teacher = Teacher.builder()
                     .name(request.getName())
                     .email(request.getEmail())
-                    .password(request.getPassword()) // 실제로는 암호화 필요
+                    .password(encodedPassword)
                     .phoneNumber(request.getPhoneNumber())
                     .kakaoChannelId(request.getKakaoChannelId())
                     .specialization(request.getSpecialization())
+                    .kakaoId(request.getKakaoId())
+                    .kakaoPasswordEncrypted(encodedKakaoPassword)
+                    .createdByAdminId(adminId) // Admin과 연결
                     .status("ACTIVE")
                     .build();
             
             Teacher savedTeacher = teacherRepository.save(teacher);
             TeacherDTO teacherDTO = convertToDTO(savedTeacher);
+            
+            log.info("Teacher created successfully: teacherId={}, createdByAdminId={}", 
+                savedTeacher.getTeacherId(), adminId);
             
             return ApiResponse.onSuccess(SuccessStatus.TEACHER_OK, teacherDTO);
             
