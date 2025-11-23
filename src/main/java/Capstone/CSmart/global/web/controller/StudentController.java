@@ -5,9 +5,11 @@ import Capstone.CSmart.global.apiPayload.code.status.SuccessStatus;
 import Capstone.CSmart.global.domain.entity.AiResponse;
 import Capstone.CSmart.global.domain.entity.Message;
 import Capstone.CSmart.global.domain.entity.Student;
+import Capstone.CSmart.global.domain.entity.Teacher;
 import Capstone.CSmart.global.repository.AiResponseRepository;
 import Capstone.CSmart.global.repository.MessageRepository;
 import Capstone.CSmart.global.repository.StudentRepository;
+import Capstone.CSmart.global.repository.TeacherRepository;
 import Capstone.CSmart.global.web.dto.AiResponse.AiResponseDTO;
 import Capstone.CSmart.global.web.dto.Student.StudentDTO;
 import Capstone.CSmart.global.web.dto.Student.UpdateStudentRequestDTO;
@@ -34,6 +36,7 @@ public class StudentController {
     private final StudentRepository studentRepository;
     private final MessageRepository messageRepository;
     private final AiResponseRepository aiResponseRepository;
+    private final TeacherRepository teacherRepository;
 
     @Operation(summary = "전체 학생 목록 조회", description = "필터링 가능한 학생 목록 조회 (담당 선생님, 등록 상태 등)")
     @GetMapping

@@ -25,7 +25,3 @@ public class StudentDTO {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }
-
-
-
-
