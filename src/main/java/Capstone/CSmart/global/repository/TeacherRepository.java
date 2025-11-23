@@ -9,7 +9,9 @@ import java.util.Optional;
 public interface TeacherRepository extends JpaRepository<Teacher, Long> {
     Optional<Teacher> findByKakaoChannelId(String channelId);
     List<Teacher> findByStatus(String status);
+    Optional<Teacher> findByKakaoId(String kakaoId);
     Optional<Teacher> findByEmail(String email);
+    List<Teacher> findByCreatedByAdminId(Long adminId);
 }
 
 
