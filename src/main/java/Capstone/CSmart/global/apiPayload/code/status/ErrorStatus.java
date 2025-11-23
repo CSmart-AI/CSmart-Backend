@@ -40,6 +40,10 @@ public enum ErrorStatus implements BaseErrorCode {
     MEMBER_EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "MEMBER_1009", "이미 가입된 이메일입니다."),
     MEMBER_NICKNAME_ALREADY_EXISTS(HttpStatus.CONFLICT, "MEMBER_1010", "이미 존재하는 닉네임입니다."),
 
+    // 카카오 로그인 관련 에러
+    KAKAO_LOGIN_FAIL(HttpStatus.UNAUTHORIZED, "KAKAO_2001", "카카오 계정 로그인에 실패했습니다."),
+    KAKAO_ACCOUNT_NOT_AUTHORIZED(HttpStatus.FORBIDDEN, "KAKAO_2002", "인증되지 않은 카카오 계정입니다."),
+
 
     ;
 

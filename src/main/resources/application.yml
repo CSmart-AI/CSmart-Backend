@@ -41,8 +41,13 @@ jwt:
 # 카카오톡 웹훅 서비스 설정
 kakao:
   webhook:
-    url: ${KAKAO_WEBHOOK_URL:http://csmart-kakaotalk:3000}
+    url:
+      admin: ${KAKAO_WEBHOOK_URL_ADMIN:http://kakao-webhook-admin:3001}
+      teacher: ${KAKAO_WEBHOOK_URL_TEACHER:http://kakao-webhook-teacher:3002}
     timeout: ${KAKAO_WEBHOOK_TIMEOUT:5000}
+  bot:
+    admin-id: ${KAKAO_BOT_ADMIN_ID:68cbb775539054197042f1ab}
+    teacher-id: ${KAKAO_BOT_TEACHER_ID:6905d80853905419704f6d52}
 
 ingest:
   api-key: ${INGEST_API_KEY:dev-ingest-key}

@@ -15,7 +15,13 @@ public enum SuccessStatus implements BaseCode {
     OK(HttpStatus.OK, "COMMON_2000", "요청이 성공적으로 처리되었습니다."),
     CREATED(HttpStatus.CREATED, "COMMON_2001", "리소스가 성공적으로 생성되었습니다."),
     
-    // 회원 관련
+    // 인증 관련
+    AUTH_OK(HttpStatus.OK, "AUTH_2000", "인증 처리가 완료되었습니다."),
+    
+    // 관리자 관련
+    ADMIN_OK(HttpStatus.OK, "ADMIN_2000", "관리자 처리가 완료되었습니다."),
+    
+    // 회원 관련 (deprecated - AUTH_OK 사용 권장)
     MEMBER_OK(HttpStatus.OK, "MEMBER_2000", "회원 처리가 완료되었습니다."),
     
     // 카카오톡 챗봇 관련
