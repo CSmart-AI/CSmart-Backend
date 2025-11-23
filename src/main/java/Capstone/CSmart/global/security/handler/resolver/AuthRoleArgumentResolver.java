@@ -2,7 +2,7 @@ package Capstone.CSmart.global.security.handler.resolver;
 
 import Capstone.CSmart.global.apiPayload.code.status.ErrorStatus;
 import Capstone.CSmart.global.apiPayload.exception.AuthException;
-import Capstone.CSmart.global.security.handler.annotation.AuthUser;
+import Capstone.CSmart.global.security.annotation.AuthRole;
 import Capstone.CSmart.global.security.principal.PrincipalDetails;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.MethodParameter;
@@ -16,12 +16,12 @@ import org.springframework.web.method.support.ModelAndViewContainer;
 
 @Component
 @RequiredArgsConstructor
-public class AuthUserArgumentResolver implements HandlerMethodArgumentResolver {
+public class AuthRoleArgumentResolver implements HandlerMethodArgumentResolver {
 
     @Override
     public boolean supportsParameter(MethodParameter parameter) {
-        return parameter.hasParameterAnnotation(AuthUser.class) 
-                && parameter.getParameterType().equals(Long.class);
+        return parameter.hasParameterAnnotation(AuthRole.class) 
+                && parameter.getParameterType().equals(String.class);
     }
 
     @Override
@@ -37,9 +37,13 @@ public class AuthUserArgumentResolver implements HandlerMethodArgumentResolver {
         }
 
         if (authentication.getPrincipal() instanceof PrincipalDetails principalDetails) {
-            return principalDetails.getUserId();
+            return principalDetails.getRole();
         }
 
-            throw new AuthException(ErrorStatus.MEMBER_NOT_FOUND);
+        throw new AuthException(ErrorStatus.MEMBER_NOT_FOUND);
     }
 }
+
+
+
+

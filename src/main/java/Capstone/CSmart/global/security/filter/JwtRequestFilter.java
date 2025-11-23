@@ -2,7 +2,12 @@ package Capstone.CSmart.global.security.filter;
 
 import Capstone.CSmart.global.apiPayload.code.status.ErrorStatus;
 import Capstone.CSmart.global.apiPayload.exception.AuthException;
-import Capstone.CSmart.global.security.principal.PrincipalDetailsService;
+import Capstone.CSmart.global.domain.entity.Admin;
+import Capstone.CSmart.global.domain.entity.Teacher;
+import Capstone.CSmart.global.domain.entity.UserEntity;
+import Capstone.CSmart.global.repository.AdminRepository;
+import Capstone.CSmart.global.repository.TeacherRepository;
+import Capstone.CSmart.global.security.principal.PrincipalDetails;
 import Capstone.CSmart.global.security.provider.JwtTokenProvider;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -22,7 +27,8 @@ import java.io.IOException;
 public class JwtRequestFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
-    private final PrincipalDetailsService principalDetailsService;
+    private final AdminRepository adminRepository;
+    private final TeacherRepository teacherRepository;
 
     @Override
     protected void doFilterInternal(
@@ -45,15 +51,17 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 
                 if (jwtTokenProvider.isTokenValid(token)) {
                     Long userId = jwtTokenProvider.getId(token);
-                    UserDetails userDetails =
-                            principalDetailsService.loadUserByUsername(userId.toString());
+                    String role = jwtTokenProvider.getRole(token);
+                    
+                    // Role에 따라 다른 Repository에서 사용자 조회
+                    UserEntity user = loadUserByRole(userId, role);
 
-                    if (userDetails != null) {
-                        UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken =
+                    if (user != null) {
+                        PrincipalDetails principalDetails = new PrincipalDetails(user);
+                        UsernamePasswordAuthenticationToken authentication =
                                 new UsernamePasswordAuthenticationToken(
-                                        userDetails, "", userDetails.getAuthorities());
-                        SecurityContextHolder.getContext()
-                                .setAuthentication(usernamePasswordAuthenticationToken);
+                                        principalDetails, "", principalDetails.getAuthorities());
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
                     } else {
                         throw new AuthException(ErrorStatus.MEMBER_NOT_FOUND);
                     }
@@ -71,6 +79,19 @@ public class JwtRequestFilter extends OncePerRequestFilter {
                     "INTERNAL_SERVER_ERROR",
                     "예기치 않은 오류가 발생했습니다.");
         }
+    }
+    
+    /**
+     * Role에 따라 다른 Repository에서 사용자 조회
+     */
+    private UserEntity loadUserByRole(Long userId, String role) {
+        return switch (role) {
+            case "ADMIN" -> adminRepository.findById(userId)
+                    .orElseThrow(() -> new AuthException(ErrorStatus.MEMBER_NOT_FOUND));
+            case "TEACHER" -> teacherRepository.findById(userId)
+                    .orElseThrow(() -> new AuthException(ErrorStatus.MEMBER_NOT_FOUND));
+            default -> throw new AuthException(ErrorStatus.MEMBER_NOT_FOUND);
+        };
     }
     
     /**

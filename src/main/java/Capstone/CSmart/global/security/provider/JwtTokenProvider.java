@@ -30,20 +30,21 @@ public class JwtTokenProvider {
        this.refreshTokenValidityMilliseconds = refreshTokenValidityMilliseconds;
    }
 
-   public String createAccessToken(Long memberId) {
-       return createToken(memberId, accessTokenValidityMilliseconds);
+   public String createAccessToken(Long userId, String role) {
+       return createToken(userId, role, accessTokenValidityMilliseconds);
    }
 
-   public String createRefreshToken(Long memberId) {
-       return createToken(memberId, refreshTokenValidityMilliseconds);
+   public String createRefreshToken(Long userId, String role) {
+       return createToken(userId, role, refreshTokenValidityMilliseconds);
    }
 
-    private String createToken(Long memberId, Long validityMilliseconds) {
+    private String createToken(Long userId, String role, Long validityMilliseconds) {
         ZonedDateTime now = ZonedDateTime.now();
         ZonedDateTime tokenValidity = now.plusSeconds(validityMilliseconds / 1000);
 
         return Jwts.builder()
-                .claim("id", memberId)
+                .claim("id", userId)
+                .claim("role", role)
                 .issuedAt(Date.from(now.toInstant()))
                 .expiration(Date.from(tokenValidity.toInstant()))
                 .signWith(secretKey, SignatureAlgorithm.HS256)
@@ -52,6 +53,10 @@ public class JwtTokenProvider {
 
     public Long getId(String token) {
         return getClaims(token).getPayload().get("id", Long.class);
+    }
+
+    public String getRole(String token) {
+        return getClaims(token).getPayload().get("role", String.class);
     }
 
     public boolean isTokenValid(String token) {

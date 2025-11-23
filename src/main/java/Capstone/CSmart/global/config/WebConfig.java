@@ -1,5 +1,6 @@
 package Capstone.CSmart.global.config;
 
+import Capstone.CSmart.global.security.handler.resolver.AuthRoleArgumentResolver;
 import Capstone.CSmart.global.security.handler.resolver.AuthUserArgumentResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
@@ -14,6 +15,7 @@ import java.util.List;
 public class WebConfig implements WebMvcConfigurer {
 
     private final AuthUserArgumentResolver authUserArgumentResolver;
+    private final AuthRoleArgumentResolver authRoleArgumentResolver;
 
     @Override
     public void addCorsMappings(final CorsRegistry registry) {
@@ -27,6 +29,7 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
         resolvers.add(authUserArgumentResolver);
+        resolvers.add(authRoleArgumentResolver);
     }
 }
 

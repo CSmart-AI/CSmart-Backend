@@ -1,8 +1,6 @@
 package Capstone.CSmart.global.config;
 
 import Capstone.CSmart.global.security.filter.JwtRequestFilter;
-import Capstone.CSmart.global.security.principal.PrincipalDetailsService;
-import Capstone.CSmart.global.security.provider.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,23 +21,29 @@ import java.util.List;
 @EnableWebSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
-    private final JwtTokenProvider jwtTokenProvider;
-    private final PrincipalDetailsService principalDetailsService;
+    private final JwtRequestFilter jwtRequestFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))  // ← CORS 활성화!
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .httpBasic(httpBasic -> httpBasic.disable())
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(
                         authorize -> authorize
-                                // 모든 요청 허용 (개발 중)
-                                .anyRequest().permitAll()
+                                // 인증 불필요 경로
+                                .requestMatchers("/auth/kakao-login").permitAll()
+                                .requestMatchers("/api/admin/**").permitAll() // TODO: 개발용 - 나중에 제거
+                                .requestMatchers("/api/kakao/messages/**").permitAll()
+                                .requestMatchers("/api/kakao/webhook/**").permitAll() // 웹훅 엔드포인트
+                                .requestMatchers("/api/gemini/**").permitAll()
+                                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                                .requestMatchers("/actuator/**").permitAll()
+                                // 나머지는 모두 인증 필요
+                                .anyRequest().authenticated()
                 )
-                // JWT 필터 비활성화 (개발 중)
-                // .addFilterBefore(new JwtRequestFilter(jwtTokenProvider, principalDetailsService), UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
 
