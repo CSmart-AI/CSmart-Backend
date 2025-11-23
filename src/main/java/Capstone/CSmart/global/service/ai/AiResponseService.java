@@ -4,6 +4,7 @@ import Capstone.CSmart.global.domain.entity.AiResponse;
 import Capstone.CSmart.global.domain.entity.Message;
 import Capstone.CSmart.global.domain.entity.Student;
 import Capstone.CSmart.global.domain.enums.AiResponseStatus;
+import Capstone.CSmart.global.domain.enums.ChannelType;
 import Capstone.CSmart.global.repository.AiResponseRepository;
 import Capstone.CSmart.global.repository.MessageRepository;
 import Capstone.CSmart.global.repository.StudentRepository;
@@ -34,8 +35,11 @@ public class AiResponseService {
     @Value("${langgraph.url}")
     private String langGraphUrl;
 
-    @Value("${kakao.webhook.url}")
-    private String kakaoWebhookUrl;
+    @Value("${kakao.webhook.url.admin}")
+    private String adminWebhookUrl;
+    
+    @Value("${kakao.webhook.url.teacher}")
+    private String teacherWebhookUrl;
 
     @Transactional
     public AiResponse generateResponse(Long messageId) {
@@ -198,6 +202,13 @@ public class AiResponseService {
             Student student = studentRepository.findById(aiResponse.getStudentId())
                     .orElseThrow(() -> new RuntimeException("Student not found"));
 
+            // 학생에게 선생님이 배정되어 있으면 TEACHER 채널, 아니면 ADMIN 채널 사용
+            ChannelType channelType = (student.getAssignedTeacherId() != null) 
+                    ? ChannelType.TEACHER 
+                    : ChannelType.ADMIN;
+            
+            String webhookUrl = getWebhookUrlByChannelType(channelType);
+
             // 카카오톡 웹훅 API 호출
             Map<String, Object> kakaoRequest = new HashMap<>();
             kakaoRequest.put("recipient", student.getName() != null ? student.getName() : "학생");
@@ -209,15 +220,27 @@ public class AiResponseService {
             headers.setContentType(MediaType.APPLICATION_JSON);
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(kakaoRequest, headers);
 
-            String kakaoEndpoint = kakaoWebhookUrl + "/api/message/send";
+            String kakaoEndpoint = webhookUrl + "/api/message/send";
+            log.info("Sending message to Kakao channel: {}, url: {}", channelType, kakaoEndpoint);
+            
             ResponseEntity<String> response = restTemplate.exchange(
                     kakaoEndpoint, HttpMethod.POST, request, String.class);
 
-            log.info("Message sent to Kakao: {}", response.getBody());
+            log.info("Message sent to Kakao channel {}: {}", channelType, response.getBody());
 
         } catch (Exception e) {
             log.error("Failed to send message to Kakao", e);
             throw new RuntimeException("Failed to send to Kakao: " + e.getMessage());
         }
+    }
+    
+    /**
+     * ChannelType에 맞는 웹훅 서버 URL 반환
+     */
+    private String getWebhookUrlByChannelType(ChannelType channelType) {
+        return switch (channelType) {
+            case ADMIN -> adminWebhookUrl;
+            case TEACHER -> teacherWebhookUrl;
+        };
     }
 }
