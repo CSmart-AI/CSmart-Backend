@@ -54,4 +54,18 @@ public class AuthRequestDTO {
         @Schema(description = "리프레시 토큰")
         private String refreshToken;
     }
+
+    @Getter
+    @NoArgsConstructor
+    @Schema(description = "카카오 로그인 요청 DTO")
+    public static class KakaoLoginRequest {
+        
+        @NotBlank(message = "카카오 계정 아이디는 필수 입력 값입니다.")
+        @Schema(description = "카카오 계정 아이디", example = "user@kakao.com")
+        private String kakaoId;
+        
+        @NotBlank(message = "카카오 계정 비밀번호는 필수 입력 값입니다.")
+        @Schema(description = "카카오 계정 비밀번호", example = "password123")
+        private String kakaoPassword;
+    }
 }

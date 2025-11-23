@@ -69,4 +69,30 @@ public class AuthResponseDTO {
         @Schema(description = "새로운 리프레시 토큰")
         private String refreshToken;
     }
+
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Schema(description = "카카오 로그인 응답 DTO")
+    public static class KakaoLoginResponse {
+        
+        @Schema(description = "사용자 ID (Admin ID 또는 Teacher ID)")
+        private Long userId;
+        
+        @Schema(description = "역할 (ADMIN 또는 TEACHER)")
+        private String role;
+        
+        @Schema(description = "이름")
+        private String name;
+        
+        @Schema(description = "이메일")
+        private String email;
+        
+        @Schema(description = "액세스 토큰")
+        private String accessToken;
+        
+        @Schema(description = "리프레시 토큰")
+        private String refreshToken;
+    }
 }
