@@ -54,6 +54,7 @@ public class SecurityConfig {
         // allowedOriginPatterns 사용 (와일드카드 지원)
         config.setAllowedOriginPatterns(List.of(
                 "http://localhost:*",
+                "chrome-extension://**",
                 "https://52.78.147.166.nip.io",
                 "http://52.78.147.166.nip.io",
                 "https://52.78.147.166",
