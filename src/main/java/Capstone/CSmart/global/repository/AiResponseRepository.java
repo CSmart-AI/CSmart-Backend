@@ -11,6 +11,7 @@ import java.util.Optional;
 
 public interface AiResponseRepository extends JpaRepository<AiResponse, Long> {
     List<AiResponse> findByStatusOrderByGeneratedAtDesc(AiResponseStatus status);
+    Page<AiResponse> findByStatusOrderByGeneratedAtDesc(AiResponseStatus status, Pageable pageable);
     List<AiResponse> findByTeacherIdAndStatus(Long teacherId, AiResponseStatus status);
     List<AiResponse> findByStudentIdOrderByGeneratedAtDesc(Long studentId);
     Optional<AiResponse> findByMessageId(Long messageId);
