@@ -4,7 +4,6 @@ import Capstone.CSmart.global.apiPayload.code.status.ErrorStatus;
 import Capstone.CSmart.global.apiPayload.exception.AuthException;
 import Capstone.CSmart.global.domain.entity.Admin;
 import Capstone.CSmart.global.domain.entity.Teacher;
-import Capstone.CSmart.global.domain.enums.Status;
 import Capstone.CSmart.global.domain.enums.UserRole;
 import Capstone.CSmart.global.repository.AdminRepository;
 import Capstone.CSmart.global.repository.TeacherRepository;
