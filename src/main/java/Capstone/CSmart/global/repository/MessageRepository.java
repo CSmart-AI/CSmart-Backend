@@ -12,6 +12,8 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     List<Message> findByStudentIdAndSentAtAfterAndSenderType(Long studentId, OffsetDateTime since, String senderType);
     List<Message> findByStudentIdAndSenderTypeOrderBySentAtDesc(Long studentId, String senderType, Pageable pageable);
     List<Message> findByStudentIdOrderBySentAtDesc(Long studentId, Pageable pageable);
+    long countByStudentId(Long studentId);
+    long countByStudentIdAndSenderType(Long studentId, String senderType);
 }
 
 
