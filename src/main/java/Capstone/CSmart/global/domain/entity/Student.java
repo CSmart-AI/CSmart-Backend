@@ -1,6 +1,7 @@
 package Capstone.CSmart.global.domain.entity;
 
 import Capstone.CSmart.global.domain.common.BaseEntity;
+import Capstone.CSmart.global.domain.enums.StudentStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -54,6 +55,10 @@ public class Student extends BaseEntity {
 
     @Column(length = 50)
     private String registrationStatus;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private StudentStatus status;
 }
 
 
