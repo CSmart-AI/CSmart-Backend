@@ -3,6 +3,8 @@ package Capstone.CSmart.global.web.controller;
 import Capstone.CSmart.global.apiPayload.ApiResponse;
 import Capstone.CSmart.global.apiPayload.code.status.SuccessStatus;
 import Capstone.CSmart.global.domain.entity.AiResponse;
+import Capstone.CSmart.global.domain.entity.Message;
+import Capstone.CSmart.global.repository.MessageRepository;
 import Capstone.CSmart.global.service.ai.AiResponseService;
 import Capstone.CSmart.global.web.dto.AiResponse.AiResponseDTO;
 import Capstone.CSmart.global.web.dto.AiResponse.EditResponseRequestDTO;
@@ -24,6 +26,7 @@ import java.util.stream.Collectors;
 public class AiResponseController {
 
     private final AiResponseService aiResponseService;
+    private final MessageRepository messageRepository;
 
     @Operation(summary = "검수 대기 응답 조회", description = "특정 선생님의 검수 대기 중인 AI 응답 목록 조회")
     @GetMapping("/pending")
@@ -89,6 +92,17 @@ public class AiResponseController {
     }
 
     private AiResponseDTO convertToDTO(AiResponse aiResponse) {
+        // 학생의 마지막 메시지 조회
+        String lastMessage = null;
+        try {
+            Message message = messageRepository.findById(aiResponse.getMessageId()).orElse(null);
+            if (message != null) {
+                lastMessage = message.getContent();
+            }
+        } catch (Exception e) {
+            log.warn("Failed to fetch last message for messageId: {}", aiResponse.getMessageId(), e);
+        }
+
         return AiResponseDTO.builder()
                 .responseId(aiResponse.getResponseId())
                 .messageId(aiResponse.getMessageId())
@@ -97,6 +111,7 @@ public class AiResponseController {
                 .recommendedResponse(aiResponse.getRecommendedResponse())
                 .status(aiResponse.getStatus().toString())
                 .generatedAt(aiResponse.getGeneratedAt())
+                .lastMessage(lastMessage)
                 .build();
     }
 }
