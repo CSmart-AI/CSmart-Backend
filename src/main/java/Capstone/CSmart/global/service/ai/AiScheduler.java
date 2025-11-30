@@ -9,7 +9,10 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.OffsetDateTime;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -22,18 +25,22 @@ public class AiScheduler {
 
     /**
      * 10분마다 신규 메시지를 모아서 LangGraph 배치 처리
-     * - 너무 많은 요청을 방지하기 위해 메시지를 모아서 처리
+     * - 각 메시지를 개별적으로 처리
+     * - 상담폼은 자동으로 건너뜀
      * - AI 응답이 없는 신규 메시지만 처리
      */
     @Scheduled(fixedDelay = 600000)  // 10분 = 600,000ms
     public void processPendingMessages() {
-        OffsetDateTime since = OffsetDateTime.now().minusMinutes(10);
+        OffsetDateTime since = OffsetDateTime.now().minusMinutes(30);
 
-        log.info("AI 스케줄러 시작: 최근 10분간 신규 메시지 배치 처리");
+        log.info("AI 스케줄러 시작: 최근 30분간 신규 메시지 개별 처리");
 
+        // AI 응답이 없는 메시지만 필터링
         List<Message> inboundMessages = messageRepository.findAll().stream()
                 .filter(m -> "student".equals(m.getSenderType()))
                 .filter(m -> m.getSentAt() != null && m.getSentAt().isAfter(since))
+                .filter(m -> aiResponseRepository.findByMessageId(m.getMessageId()).isEmpty())
+                .sorted((m1, m2) -> m1.getSentAt().compareTo(m2.getSentAt())) // 오래된 순
                 .toList();
 
         if (inboundMessages.isEmpty()) {
@@ -41,31 +48,36 @@ public class AiScheduler {
             return;
         }
 
-        log.info("{}개의 학생 메시지 발견", inboundMessages.size());
+        log.info("{}개의 미처리 메시지 발견", inboundMessages.size());
 
         int processedCount = 0;
         int skippedCount = 0;
         int failedCount = 0;
 
+        // ✅ 각 메시지를 개별적으로 처리
         for (Message message : inboundMessages) {
             try {
-                if (aiResponseRepository.findByMessageId(message.getMessageId()).isPresent()) {
-                    skippedCount++;
-                    continue;
-                }
+                log.info("메시지 처리 중: messageId={}, studentId={}",
+                        message.getMessageId(), message.getStudentId());
 
-                log.debug("LangGraph 처리 중: messageId={}", message.getMessageId());
+                // AI 응답 생성 (상담폼은 AiResponseService에서 자동으로 건너뜀)
                 aiResponseService.generateResponse(message.getMessageId());
                 processedCount++;
 
             } catch (Exception e) {
-                failedCount++;
-                log.error("메시지 처리 실패: messageId={}, error={}", 
-                        message.getMessageId(), e.getMessage());
+                // 상담폼인 경우 에러가 발생하지만 정상 동작
+                if (e.getMessage().contains("상담폼")) {
+                    skippedCount++;
+                    log.info("상담폼 메시지 건너뜀: messageId={}", message.getMessageId());
+                } else {
+                    failedCount++;
+                    log.error("메시지 처리 실패: messageId={}, error={}",
+                            message.getMessageId(), e.getMessage(), e);
+                }
             }
         }
 
-        log.info("AI 스케줄러 완료: 처리={}, 스킵={}, 실패={}", 
+        log.info("AI 스케줄러 완료: 처리={}, 스킵(상담폼)={}, 실패={}",
                 processedCount, skippedCount, failedCount);
     }
 }
