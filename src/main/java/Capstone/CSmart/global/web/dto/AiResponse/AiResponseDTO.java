@@ -20,6 +20,7 @@ public class AiResponseDTO {
     private String recommendedResponse;
     private String status;
     private OffsetDateTime generatedAt;
+    private String lastMessage; // 학생의 마지막 메시지
 }
 
 

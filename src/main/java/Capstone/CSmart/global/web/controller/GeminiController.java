@@ -158,5 +158,34 @@ public class GeminiController {
         
         return savedStudent;
     }
+
+    @Operation(
+        summary = "학생 정보 수동 저장", 
+        description = "프론트엔드에서 수동으로 입력한 학생 정보를 저장합니다. " +
+                     "Gemini API를 사용하지 않고 직접 입력된 정보를 Student 테이블에 저장합니다."
+    )
+    @PostMapping("/save-student-info/{studentId}")
+    public ApiResponse<Student> saveStudentInfoManually(
+            @PathVariable Long studentId,
+            @RequestBody Map<String, Object> studentInfo) {
+        
+        log.info("학생 정보 수동 저장 요청: studentId={}", studentId);
+        
+        try {
+            Student student = studentRepository.findById(studentId)
+                    .orElseThrow(() -> new RuntimeException("Student not found: " + studentId));
+            
+            // 수동으로 입력된 정보로 학생 엔티티 업데이트
+            Student updatedStudent = updateStudentInfo(student, studentInfo);
+            
+            log.info("학생 정보 수동 저장 완료: studentId={}", studentId);
+            
+            return ApiResponse.onSuccess(SuccessStatus.CHATBOT_INFO_EXTRACTED, updatedStudent);
+            
+        } catch (Exception e) {
+            log.error("학생 정보 수동 저장 중 오류 발생: studentId={}", studentId, e);
+            return ApiResponse.onFailure("SAVE_ERROR", e.getMessage(), null);
+        }
+    }
 }
 
