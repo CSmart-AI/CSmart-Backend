@@ -35,11 +35,11 @@ public class AiScheduler {
 
         log.info("AI 스케줄러 시작: 최근 30분간 신규 메시지 개별 처리");
 
-        // AI 응답이 없는 메시지만 필터링
+        // AI 응답이 없는 메시지만 필터링 (가장 최근 것만 확인)
         List<Message> inboundMessages = messageRepository.findAll().stream()
                 .filter(m -> "student".equals(m.getSenderType()))
                 .filter(m -> m.getSentAt() != null && m.getSentAt().isAfter(since))
-                .filter(m -> aiResponseRepository.findByMessageId(m.getMessageId()).isEmpty())
+                .filter(m -> aiResponseRepository.findTopByMessageIdOrderByGeneratedAtDesc(m.getMessageId()).isEmpty())
                 .sorted((m1, m2) -> m1.getSentAt().compareTo(m2.getSentAt())) // 오래된 순
                 .toList();
 

@@ -63,8 +63,8 @@ public class AiResponseService {
 
     @Transactional
     public AiResponse generateResponse(Long messageId) {
-        // 이미 AI 응답이 있는지 확인
-        Optional<AiResponse> existingResponse = aiResponseRepository.findByMessageId(messageId);
+        // 이미 AI 응답이 있는지 확인 (가장 최근 것만)
+        Optional<AiResponse> existingResponse = aiResponseRepository.findTopByMessageIdOrderByGeneratedAtDesc(messageId);
         if (existingResponse.isPresent()) {
             log.info("AI Response already exists for messageId: {}", messageId);
             return existingResponse.get();
@@ -92,6 +92,8 @@ public class AiResponseService {
             if (cachedAnswer.isPresent()) {
                 log.info("✅ 캐시 히트! LangGraph 호출 생략. messageId={}, cacheId={}",
                     messageId, cachedAnswer.get().getCacheId());
+                log.info("📝 현재 메시지: {}", message.getContent());
+                log.info("💾 캐시된 질문: {}", cachedAnswer.get().getQuestion());
 
                 // 캐시된 답변으로 AiResponse 생성
                 AiResponse aiResponse = AiResponse.builder()
