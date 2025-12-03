@@ -63,14 +63,24 @@ public class SemanticCacheService {
             // 3. 유사도 계산 결과를 Map에 저장 (1회만 계산)
             java.util.Map<SemanticCache, Double> similarityMap = new java.util.HashMap<>();
 
+            // 현재 질문의 핵심 키워드 추출 (명사, 동사 등)
+            java.util.Set<String> questionKeywords = extractKeywords(question);
+
             for (SemanticCache cache : highQualityCaches) {
                 try {
                     List<Double> cacheEmbedding = embeddingService.jsonToVector(cache.getEmbeddingJson());
                     double similarity = embeddingService.cosineSimilarity(questionEmbedding, cacheEmbedding);
 
                     if (similarity >= similarityThreshold) {
-                        similarityMap.put(cache, similarity);
-                        log.debug("Cache ID: {}, Similarity: {:.4f}", cache.getCacheId(), similarity);
+                        // 키워드 기반 필터링: 핵심 키워드가 완전히 다르면 제외
+                        java.util.Set<String> cacheKeywords = extractKeywords(cache.getQuestion());
+                        if (hasSignificantKeywordOverlap(questionKeywords, cacheKeywords)) {
+                            similarityMap.put(cache, similarity);
+                            log.debug("Cache ID: {}, Similarity: {:.4f}, Keywords match", cache.getCacheId(), similarity);
+                        } else {
+                            log.debug("Cache ID: {}, Similarity: {:.4f}, but keywords don't match - SKIPPED",
+                                cache.getCacheId(), similarity);
+                        }
                     }
                 } catch (Exception e) {
                     log.warn("Failed to calculate similarity for cacheId: {}", cache.getCacheId(), e);
@@ -94,6 +104,8 @@ public class SemanticCacheService {
 
                 log.info("🎯 캐시 히트! Cache ID: {}, Similarity: {:.4f}, Hit Count: {}",
                     cache.getCacheId(), similarity, cache.getHitCount());
+                log.info("📝 현재 질문: {}", question);
+                log.info("💾 캐시된 질문: {}", cache.getQuestion());
 
                 // 비동기로 히트 카운트 업데이트 (성능을 위해)
                 updateCacheHitAsync(cache.getCacheId());
@@ -120,7 +132,7 @@ public class SemanticCacheService {
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public SemanticCache saveToCache(String question, String answer, Long responseId, double confidenceScore) {
         try {
-            log.info("Saving to semantic cache: question={}, responseId={}, confidenceScore={}", 
+            log.info("Saving to semantic cache: question={}, responseId={}, confidenceScore={}",
                 question.substring(0, Math.min(question.length(), 50)), responseId, confidenceScore);
 
             // 1. 이미 저장된 응답인지 확인
@@ -177,6 +189,65 @@ public class SemanticCacheService {
     }
 
     /**
+     * 질문에서 핵심 키워드 추출
+     * 한국어의 경우 주요 명사, 동사 등을 추출
+     */
+    private java.util.Set<String> extractKeywords(String text) {
+        java.util.Set<String> keywords = new java.util.HashSet<>();
+
+        // 공백으로 분리하고, 2글자 이상인 단어만 키워드로 추출
+        String[] words = text.split("[\\s\\p{Punct}]+");
+        for (String word : words) {
+            word = word.trim().toLowerCase();
+            // 2글자 이상이고, 불용어가 아닌 경우만 추가
+            if (word.length() >= 2 && !isStopWord(word)) {
+                keywords.add(word);
+            }
+        }
+
+        return keywords;
+    }
+
+    /**
+     * 불용어 체크 (한국어) 일단 단순하게만 처리
+     */
+    private boolean isStopWord(String word) {
+        // 간단한 불용어 리스트
+        java.util.Set<String> stopWords = java.util.Set.of(
+            "은", "는", "이", "가", "을", "를", "의", "에", "에서", "로", "으로",
+            "와", "과", "도", "만", "부터", "까지", "에게", "한테", "께",
+            "해주세요", "해주", "주세요", "주", "해", "하", "할", "하는", "한",
+            "때", "때문", "것", "거", "게", "건", "거야", "거예요",
+            "어떤", "어떻게", "무엇", "뭐", "왜", "어디", "언제", "누구",
+            "있", "없", "되", "안", "못", "안", "못"
+        );
+        return stopWords.contains(word);
+    }
+
+    /**
+     * 두 키워드 집합 간의 유의미한 겹침이 있는지 확인
+     * 핵심 키워드가 하나라도 겹치면 true 반환
+     */
+    private boolean hasSignificantKeywordOverlap(java.util.Set<String> keywords1, java.util.Set<String> keywords2) {
+        if (keywords1.isEmpty() || keywords2.isEmpty()) {
+            return true; // 키워드가 없으면 필터링하지 않음
+        }
+
+        // 교집합 계산
+        java.util.Set<String> intersection = new java.util.HashSet<>(keywords1);
+        intersection.retainAll(keywords2);
+
+        // 핵심 키워드가 하나라도 겹치면 true
+        // 또는 키워드가 너무 적으면 (3개 이하) 필터링하지 않음
+        if (keywords1.size() <= 3 || keywords2.size() <= 3) {
+            return true;
+        }
+
+        // 교집합이 있으면 true
+        return !intersection.isEmpty();
+    }
+
+    /**
      * 비동기로 캐시 히트 카운트 업데이트
      * public으로 변경 (Spring AOP 프록시를 위해 필요)
      */
@@ -217,13 +288,13 @@ public class SemanticCacheService {
     public CacheStatistics getCacheStatistics() {
         try {
             Object[] stats = cacheRepository.getCacheStatistics();
-            
+
             long totalCount = stats != null && stats.length > 0 ? ((Number) stats[0]).longValue() : 0;
             long totalHits = stats != null && stats.length > 1 && stats[1] != null ? ((Number) stats[1]).longValue() : 0;
             double avgConfidence = stats != null && stats.length > 2 && stats[2] != null ? ((Number) stats[2]).doubleValue() : 0.0;
 
             double hitRate = totalCount > 0 ? (double) totalHits / (totalHits + totalCount) * 100 : 0.0;
-            
+
             // 예상 비용 절감 계산 (캐시 히트당 $0.02 절약)
             double estimatedSavings = totalHits * 0.02;
 
@@ -254,7 +325,7 @@ public class SemanticCacheService {
      */
     public List<SemanticCache> getHighConfidenceCaches(double minConfidence, int limit) {
         return cacheRepository.findByConfidenceScoreGreaterThanEqualOrderByConfidenceScoreDescHitCountDesc(
-            minConfidence, 
+            minConfidence,
             org.springframework.data.domain.PageRequest.of(0, limit)
         );
     }
@@ -266,11 +337,11 @@ public class SemanticCacheService {
     public void cleanupLowQualityCaches(double minConfidence, int maxAge) {
         try {
             java.time.LocalDateTime cutoffDate = java.time.LocalDateTime.now().minusDays(maxAge);
-            
+
             // 낮은 신뢰도 또는 오래된 캐시 조회
             List<SemanticCache> cachesToDelete = cacheRepository.findAll().stream()
-                .filter(cache -> 
-                    cache.getConfidenceScore() < minConfidence || 
+                .filter(cache ->
+                    cache.getConfidenceScore() < minConfidence ||
                     cache.getCreatedAt().isBefore(cutoffDate)
                 )
                 .toList();
@@ -283,7 +354,7 @@ public class SemanticCacheService {
 
             // DB에서 삭제
             cacheRepository.deleteAll(cachesToDelete);
-            
+
             log.info("Cleaned up {} low quality cache entries", cachesToDelete.size());
 
         } catch (Exception e) {

@@ -74,7 +74,7 @@ gemini:
 
 # 시멘틱 캐싱 설정
 semantic-cache:
-  similarity-threshold: 0.85  # 85% 이상 유사하면 캐시 히트
+  similarity-threshold: 0.92  # 92% 이상 유사하면 캐시 히트 (NOTE: 7% 정도 올림, 바꾸면서 테스트 해야될 듯)
   cache-ttl: 604800           # 7일 (초 단위)
   embedding:
     model: text-embedding-004  # Google Embedding 모델

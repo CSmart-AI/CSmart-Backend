@@ -15,6 +15,8 @@ public interface AiResponseRepository extends JpaRepository<AiResponse, Long> {
     List<AiResponse> findByTeacherIdAndStatus(Long teacherId, AiResponseStatus status);
     List<AiResponse> findByStudentIdOrderByGeneratedAtDesc(Long studentId);
     Optional<AiResponse> findByMessageId(Long messageId);
+    // 가장 최근 생성된 응답만 가져오기 (중복 방지)
+    Optional<AiResponse> findTopByMessageIdOrderByGeneratedAtDesc(Long messageId);
     Page<AiResponse> findByTeacherIdAndStatusOrderByGeneratedAtDesc(Long teacherId, AiResponseStatus status, Pageable pageable);
 }
 
