@@ -8,6 +8,7 @@ import Capstone.CSmart.global.domain.entity.Student;
 import Capstone.CSmart.global.domain.entity.Teacher;
 import Capstone.CSmart.global.repository.AiResponseRepository;
 import Capstone.CSmart.global.repository.MessageRepository;
+import Capstone.CSmart.global.repository.SemanticCacheRepository;
 import Capstone.CSmart.global.repository.StudentRepository;
 import Capstone.CSmart.global.repository.TeacherRepository;
 import Capstone.CSmart.global.web.dto.AiResponse.AiResponseDTO;
@@ -19,11 +20,14 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Tag(name = "학생 관리 API", description = "학생 CRUD 및 메시지/AI응답 이력 조회")
@@ -36,7 +40,9 @@ public class StudentController {
     private final StudentRepository studentRepository;
     private final MessageRepository messageRepository;
     private final AiResponseRepository aiResponseRepository;
+    private final SemanticCacheRepository semanticCacheRepository;
     private final TeacherRepository teacherRepository;
+    private final RedisTemplate<String, String> redisTemplate;
 
     @Operation(summary = "전체 학생 목록 조회", description = "필터링 가능한 학생 목록 조회 (담당 선생님, 등록 상태 등)")
     @GetMapping
@@ -204,6 +210,75 @@ public class StudentController {
             
         } catch (Exception e) {
             log.error("Failed to delete student: {}", id, e);
+            return ApiResponse.onFailure("DELETE_STUDENT_FAILED", e.getMessage(), null);
+        }
+    }
+
+    @Operation(summary = "학생 완전 삭제", description = "학생과 관련된 모든 데이터 완전 삭제 (메시지, AI 응답, 캐시 등)")
+    @DeleteMapping("/{id}/complete")
+    @Transactional
+    public ApiResponse<Map<String, Object>> deleteStudentCompletely(@PathVariable Long id) {
+        
+        log.info("Complete delete student request: id={}", id);
+        
+        try {
+            // 학생 존재 확인 (더 자세한 로깅)
+            log.debug("Looking up student with id={}", id);
+            Optional<Student> studentOpt = studentRepository.findById(id);
+            
+            if (studentOpt.isEmpty()) {
+                log.warn("Student not found in database: id={}. Checking if student exists in other ways...", id);
+                // 디버깅: 전체 학생 목록 확인
+                long totalStudents = studentRepository.count();
+                log.warn("Total students in database: {}", totalStudents);
+                
+                return ApiResponse.onFailure("STUDENT_NOT_FOUND", 
+                        "학생을 찾을 수 없습니다: " + id, null);
+            }
+            
+            Student student = studentOpt.get();
+            log.info("Student found: id={}, name={}, status={}, kakaoUserId={}", 
+                    student.getStudentId(), student.getName(), 
+                    student.getRegistrationStatus(), student.getKakaoUserId());
+            
+            int deletedMessages = 0;
+            int deletedAiResponses = 0;
+            
+            // 1. 학생의 AI 응답 조회
+            List<AiResponse> aiResponses = aiResponseRepository.findByStudentIdOrderByGeneratedAtDesc(id);
+            deletedAiResponses = aiResponses.size();
+            
+            // 2. 캐시는 삭제하지 않음 (다른 학생들도 사용할 수 있도록 유지)
+            log.info("캐시는 유지합니다. 학생 삭제 시 캐시는 삭제하지 않습니다. studentId={}", id);
+            
+            // 3. AI 응답 삭제
+            if (!aiResponses.isEmpty()) {
+                aiResponseRepository.deleteAll(aiResponses);
+                log.info("Deleted {} AI responses for studentId={}", deletedAiResponses, id);
+            }
+            
+            // 4. 메시지 삭제
+            List<Message> messages = messageRepository.findByStudentIdOrderBySentAtDesc(id, PageRequest.of(0, Integer.MAX_VALUE));
+            deletedMessages = messages.size();
+            if (!messages.isEmpty()) {
+                messageRepository.deleteAll(messages);
+                log.info("Deleted {} messages for studentId={}", deletedMessages, id);
+            }
+            
+            // 5. 학생 삭제
+            studentRepository.delete(student);
+            log.info("Deleted student: studentId={}", id);
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("studentId", id);
+            result.put("deletedMessages", deletedMessages);
+            result.put("deletedAiResponses", deletedAiResponses);
+            result.put("message", "Student and all related data deleted successfully (캐시는 유지됨)");
+            
+            return ApiResponse.onSuccess(SuccessStatus.STUDENT_DELETED, result);
+            
+        } catch (Exception e) {
+            log.error("Failed to completely delete student: {}", id, e);
             return ApiResponse.onFailure("DELETE_STUDENT_FAILED", e.getMessage(), null);
         }
     }

@@ -5,6 +5,7 @@ import Capstone.CSmart.global.domain.entity.Teacher;
 import Capstone.CSmart.global.repository.StudentRepository;
 import Capstone.CSmart.global.repository.TeacherRepository;
 import Capstone.CSmart.global.service.gemini.GeminiService;
+import Capstone.CSmart.global.service.student.StudentInfoUpdateService;
 import Capstone.CSmart.global.web.dto.Transfer.TransferToTeacherResponseDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +23,7 @@ public class StudentTransferService {
     private final StudentRepository studentRepository;
     private final TeacherRepository teacherRepository;
     private final GeminiService geminiService;
+    private final StudentInfoUpdateService studentInfoUpdateService;
 
     /**
      * 학생을 선생님 채널로 전환
@@ -48,17 +50,22 @@ public class StudentTransferService {
             // 2. Gemini API로 채팅 기록 분석하여 학생 정보 추출
             log.info("Gemini API로 학생 정보 추출 시작: studentId={}", studentId);
             Map<String, Object> extractedInfo = geminiService.extractUserInfoFromChat(studentId);
-            log.info("Gemini에서 추출한 학생 정보: {}", extractedInfo);
+            
+            if (extractedInfo == null || extractedInfo.isEmpty()) {
+                log.warn("Gemini API에서 학생 정보 추출 실패 또는 빈 결과: studentId={}. 기존 정보로 진행합니다.", studentId);
+                extractedInfo = new HashMap<>();
+            } else {
+                log.info("Gemini에서 추출한 학생 정보: studentId={}, 필드 수={}, 필드명={}", 
+                        studentId, extractedInfo.size(), extractedInfo.keySet());
+            }
 
-            // 3. Student 엔티티 업데이트
-            updateStudentInfo(student, extractedInfo);
+            // 3. 공통 서비스를 사용하여 Student 엔티티 업데이트
+            // extractedInfo가 비어있어도 기존 정보는 유지되고 선생님만 배정됨
+            student = studentInfoUpdateService.updateStudentInfo(student, extractedInfo);
 
             // 4. 선생님 배정 및 상태 업데이트
             student.setAssignedTeacherId(teacherId);
             student.setRegistrationStatus("TRANSFERRED_TO_TEACHER");
-
-            // 5. Gemini에서 추출한 정보를 JSON으로 저장
-            saveExtractedInfoAsJson(student, extractedInfo);
 
             // 6. 저장
             Student savedStudent = studentRepository.save(student);
@@ -75,52 +82,6 @@ public class StudentTransferService {
         }
     }
     
-    /**
-     * Gemini가 추출한 정보로 Student 엔티티 업데이트
-     */
-    private void updateStudentInfo(Student student, Map<String, Object> extractedInfo) {
-        if (extractedInfo.containsKey("name")) {
-            student.setName((String) extractedInfo.get("name"));
-        }
-        if (extractedInfo.containsKey("age")) {
-            Object age = extractedInfo.get("age");
-            if (age instanceof Number) {
-                student.setAge(((Number) age).intValue());
-            }
-        }
-        if (extractedInfo.containsKey("previousSchool")) {
-            student.setPreviousSchool((String) extractedInfo.get("previousSchool"));
-        }
-        if (extractedInfo.containsKey("targetUniversity")) {
-            student.setTargetUniversity((String) extractedInfo.get("targetUniversity"));
-        }
-        if (extractedInfo.containsKey("phoneNumber")) {
-            student.setPhoneNumber((String) extractedInfo.get("phoneNumber"));
-        }
-        if (extractedInfo.containsKey("desiredMajor")) {
-            student.setDesiredMajor((String) extractedInfo.get("desiredMajor"));
-        }
-        if (extractedInfo.containsKey("currentGrade")) {
-            student.setCurrentGrade((String) extractedInfo.get("currentGrade"));
-        }
-        if (extractedInfo.containsKey("desiredSemester")) {
-            student.setDesiredSemester((String) extractedInfo.get("desiredSemester"));
-        }
-    }
-    
-    /**
-     * 추출된 정보를 JSON으로 저장
-     */
-    private void saveExtractedInfoAsJson(Student student, Map<String, Object> extractedInfo) {
-        if (!extractedInfo.isEmpty()) {
-            try {
-                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                student.setConsultationFormDataJson(mapper.writeValueAsString(extractedInfo));
-            } catch (Exception e) {
-                log.warn("학생 정보 JSON 저장 실패: studentId={}", student.getStudentId(), e);
-            }
-        }
-    }
     
     /**
      * 전환 결과 Response 생성
@@ -128,18 +89,29 @@ public class StudentTransferService {
     private TransferToTeacherResponseDTO buildTransferResponse(
             Student student, Teacher teacher, Map<String, Object> extractedInfo) {
         
-        // ExtractedStudentInfo 생성
+        // extractedInfo가 null이면 빈 Map으로 처리
+        if (extractedInfo == null) {
+            extractedInfo = new HashMap<>();
+        }
+        
+        // ExtractedStudentInfo 생성 (null-safe)
         TransferToTeacherResponseDTO.ExtractedStudentInfo studentInfo = 
             TransferToTeacherResponseDTO.ExtractedStudentInfo.builder()
-                .name((String) extractedInfo.get("name"))
-                .age(extractedInfo.get("age") instanceof Number ? 
+                .name(extractedInfo.containsKey("name") ? (String) extractedInfo.get("name") : null)
+                .age(extractedInfo.containsKey("age") && extractedInfo.get("age") instanceof Number ? 
                      ((Number) extractedInfo.get("age")).intValue() : null)
-                .previousSchool((String) extractedInfo.get("previousSchool"))
-                .targetUniversity((String) extractedInfo.get("targetUniversity"))
-                .phoneNumber((String) extractedInfo.get("phoneNumber"))
-                .major((String) extractedInfo.get("major"))
-                .currentGrade((String) extractedInfo.get("currentGrade"))
-                .desiredSemester((String) extractedInfo.get("desiredSemester"))
+                .previousSchool(extractedInfo.containsKey("previousSchool") ? 
+                               (String) extractedInfo.get("previousSchool") : null)
+                .targetUniversity(extractedInfo.containsKey("targetUniversity") ? 
+                                (String) extractedInfo.get("targetUniversity") : null)
+                .phoneNumber(extractedInfo.containsKey("phoneNumber") ? 
+                           (String) extractedInfo.get("phoneNumber") : null)
+                .major(extractedInfo.containsKey("desiredMajor") ? 
+                      (String) extractedInfo.get("desiredMajor") : null)
+                .currentGrade(extractedInfo.containsKey("currentGrade") ? 
+                            (String) extractedInfo.get("currentGrade") : null)
+                .desiredSemester(extractedInfo.containsKey("desiredSemester") ? 
+                               (String) extractedInfo.get("desiredSemester") : null)
                 .additionalInfo(new HashMap<>(extractedInfo))
                 .build();
         
@@ -149,7 +121,7 @@ public class StudentTransferService {
                 .teacherName(teacher.getName())
                 .studentName(student.getName())
                 .extractedInfo(studentInfo)
-                .savedMessageCount(extractedInfo.size())
+                .savedMessageCount(1)
                 .transferStatus("SUCCESS")
                 .build();
     }
