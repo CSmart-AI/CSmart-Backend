@@ -1,5 +1,6 @@
 package Capstone.CSmart.global.service.embedding;
 
+import Capstone.CSmart.global.service.circuitbreaker.CircuitBreakerService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +20,9 @@ public class EmbeddingService {
 
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final CircuitBreakerService circuitBreakerService;
+    
+    private static final String GEMINI_CIRCUIT_BREAKER = "gemini-api";
 
     @Value("${gemini.api-key}")
     private String apiKey;
@@ -58,8 +62,11 @@ public class EmbeddingService {
 
             log.debug("Generating embedding for text length: {} with model: {}", text.length(), embeddingModel);
 
-            // API 호출
-            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, request, Map.class);
+            // API 호출 (Circuit Breaker로 보호)
+            ResponseEntity<Map> response = circuitBreakerService.execute(
+                    GEMINI_CIRCUIT_BREAKER,
+                    () -> restTemplate.exchange(url, HttpMethod.POST, request, Map.class)
+            );
 
             if (response.getBody() == null) {
                 throw new RuntimeException("Google Embeddings API returned null response");
