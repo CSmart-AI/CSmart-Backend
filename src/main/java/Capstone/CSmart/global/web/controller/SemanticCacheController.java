@@ -8,6 +8,9 @@ import Capstone.CSmart.global.service.confidence.ConfidenceScoreService;
 import Capstone.CSmart.global.service.scheduler.CacheSchedulerService;
 import Capstone.CSmart.global.web.dto.cache.CacheStatsResponseDTO;
 import Capstone.CSmart.global.web.dto.cache.CacheWarmupRequestDTO;
+import Capstone.CSmart.global.web.dto.cache.UpdateCacheRequestDTO;
+import Capstone.CSmart.global.domain.entity.SemanticCache;
+import jakarta.validation.Valid;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -245,6 +248,45 @@ public class SemanticCacheController {
         } catch (Exception e) {
             log.error("고품질 캐시 목록 조회 실패", e);
             throw new RuntimeException("고품질 캐시 목록 조회에 실패했습니다.");
+        }
+    }
+
+    /**
+     * 캐시 답변 수정
+     */
+    @PutMapping("/{cacheId}")
+    @Operation(
+        summary = "캐시 답변 수정",
+        description = "저장된 캐시의 답변을 수정합니다."
+    )
+    public ApiResponse<Object> updateCacheAnswer(
+        @Parameter(description = "캐시 ID")
+        @PathVariable Long cacheId,
+        
+        @Valid @RequestBody UpdateCacheRequestDTO request
+    ) {
+        try {
+            log.info("캐시 답변 수정 요청: cacheId={}", cacheId);
+            
+            SemanticCache updatedCache = semanticCacheService.updateCacheAnswer(cacheId, request.getAnswer());
+            
+            return ApiResponse.onSuccess(SuccessStatus.OK, java.util.Map.of(
+                "cacheId", updatedCache.getCacheId(),
+                "question", updatedCache.getQuestion(),
+                "answer", updatedCache.getAnswer(),
+                "confidenceScore", updatedCache.getConfidenceScore(),
+                "hitCount", updatedCache.getHitCount(),
+                "message", "캐시 답변이 성공적으로 수정되었습니다."
+            ));
+
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("Cache not found")) {
+                log.warn("캐시를 찾을 수 없음: cacheId={}", cacheId);
+                return ApiResponse.onFailure("CACHE_NOT_FOUND", 
+                        "캐시를 찾을 수 없습니다: " + cacheId, null);
+            }
+            log.error("캐시 답변 수정 실패: cacheId={}", cacheId, e);
+            throw new RuntimeException("캐시 답변 수정에 실패했습니다: " + e.getMessage());
         }
     }
 }
