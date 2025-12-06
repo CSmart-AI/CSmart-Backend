@@ -27,47 +27,38 @@ public class KakaoService {
 
     /**
      * 카카오톡 메시지 전송 (채널별)
+     * 
+     * [주의] 실제 카카오톡 웹훅 서버로 메시지를 전송하지 않습니다.
+     * 프론트엔드에서 직접 처리하므로, 백엔드는 성공 응답만 반환합니다.
      *
      * @param request 메시지 전송 요청
      * @param channelType 채널 타입 (ADMIN 또는 TEACHER)
-     * @return 메시지 전송 응답
+     * @return 메시지 전송 응답 (성공 상태)
      */
     public KakaoResponseDTO.SendMessageResponse sendMessage(
             KakaoRequestDTO.SendMessageRequest request, 
             ChannelType channelType) {
-        try {
-            String webhookUrl = getWebhookUrlByChannelType(channelType);
-            String url = webhookUrl + "/api/message/send";
-            
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            
-            HttpEntity<KakaoRequestDTO.SendMessageRequest> entity = new HttpEntity<>(request, headers);
-            
-            log.info("카카오톡 메시지 전송 요청: channel={}, recipient={}, chatId={}", 
-                channelType, request.getRecipient(), request.getChatId());
-            
-            ResponseEntity<KakaoResponseDTO.SendMessageResponse> response = restTemplate.exchange(
-                url,
-                HttpMethod.POST,
-                entity,
-                KakaoResponseDTO.SendMessageResponse.class
-            );
-            
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                log.info("카카오톡 메시지 전송 성공: channel={}, messageId={}", 
-                    channelType,
-                    response.getBody().getResult() != null ? response.getBody().getResult().getMessageId() : "N/A");
-                return response.getBody();
-            } else {
-                log.error("카카오톡 메시지 전송 실패: channel={}, status={}", channelType, response.getStatusCode());
-                throw new RuntimeException("카카오톡 메시지 전송 실패");
-            }
-            
-        } catch (RestClientException e) {
-            log.error("카카오톡 메시지 전송 중 오류 발생: channel={}", channelType, e);
-            throw new RuntimeException("카카오톡 메시지 전송 중 오류 발생: " + e.getMessage(), e);
-        }
+        log.info("카카오톡 메시지 전송 요청: channel={}, recipient={}, chatId={}", 
+            channelType, request.getRecipient(), request.getChatId());
+        
+        // 실제 웹훅 서버 호출 없이 성공 응답만 반환 (프론트엔드에서 직접 처리)
+        KakaoResponseDTO.SendMessageResponse.MessageResult result = 
+            KakaoResponseDTO.SendMessageResponse.MessageResult.builder()
+                .messageId("frontend-handled")
+                .sentAt(java.time.OffsetDateTime.now().toString())
+                .status("SUCCESS")
+                .build();
+        
+        KakaoResponseDTO.SendMessageResponse response = 
+            KakaoResponseDTO.SendMessageResponse.builder()
+                .success(true)
+                .message("메시지 전송 성공")
+                .result(result)
+                .build();
+        
+        log.info("카카오톡 메시지 전송 성공: channel={}, messageId={}", 
+            channelType, result.getMessageId());
+        return response;
     }
 
     /**

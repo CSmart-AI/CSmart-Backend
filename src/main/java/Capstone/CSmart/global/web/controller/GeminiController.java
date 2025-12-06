@@ -5,10 +5,12 @@ import Capstone.CSmart.global.apiPayload.code.status.SuccessStatus;
 import Capstone.CSmart.global.domain.entity.Student;
 import Capstone.CSmart.global.repository.StudentRepository;
 import Capstone.CSmart.global.service.gemini.GeminiService;
+import Capstone.CSmart.global.service.student.StudentInfoUpdateService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -22,6 +24,7 @@ public class GeminiController {
 
     private final GeminiService geminiService;
     private final StudentRepository studentRepository;
+    private final StudentInfoUpdateService studentInfoUpdateService;
 
     @Operation(
         summary = "학생 정보 추출 (정식 서비스 가입용)", 
@@ -94,7 +97,16 @@ public class GeminiController {
                         "정보 추출에 실패했습니다. 채팅 기록이 충분한지 확인해주세요.", null);
             }
             
-            Student updatedStudent = updateStudentInfo(student, extractedInfo);
+            // 공통 서비스를 사용하여 학생 정보 업데이트
+            Student updatedStudent = studentInfoUpdateService.updateStudentInfo(student, extractedInfo);
+            
+            // 등록 상태 업데이트: CHATTING → REGISTERED
+            if (!"REGISTERED".equals(updatedStudent.getRegistrationStatus()) && 
+                !"INFO_COLLECTED".equals(updatedStudent.getRegistrationStatus())) {
+                updatedStudent.setRegistrationStatus("REGISTERED");
+            }
+            
+            updatedStudent = studentRepository.save(updatedStudent);
             
             log.info("Gemini 정보 추출 및 저장 완료: studentId={}", studentId);
             
@@ -106,58 +118,6 @@ public class GeminiController {
         }
     }
     
-    /**
-     * 추출된 정보로 학생 엔티티 업데이트
-     */
-    private Student updateStudentInfo(Student student, Map<String, Object> extractedInfo) {
-        
-        // 이름 업데이트
-        if (extractedInfo.containsKey("name") && extractedInfo.get("name") != null) {
-            student.setName((String) extractedInfo.get("name"));
-        }
-        
-        // 나이 업데이트
-        if (extractedInfo.containsKey("age") && extractedInfo.get("age") != null) {
-            student.setAge(((Number) extractedInfo.get("age")).intValue());
-        }
-        
-        // 전적 대학 업데이트
-        if (extractedInfo.containsKey("previousSchool") && extractedInfo.get("previousSchool") != null) {
-            student.setPreviousSchool((String) extractedInfo.get("previousSchool"));
-        }
-        
-        // 목표 대학 업데이트
-        if (extractedInfo.containsKey("targetUniversity") && extractedInfo.get("targetUniversity") != null) {
-            student.setTargetUniversity((String) extractedInfo.get("targetUniversity"));
-        }
-        
-        // 전화번호 업데이트
-        if (extractedInfo.containsKey("phoneNumber") && extractedInfo.get("phoneNumber") != null) {
-            student.setPhoneNumber((String) extractedInfo.get("phoneNumber"));
-        }
-        
-        // 상담 데이터 JSON으로 저장
-        if (extractedInfo.containsKey("consultationData") && extractedInfo.get("consultationData") != null) {
-            try {
-                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                student.setConsultationFormDataJson(mapper.writeValueAsString(extractedInfo));
-            } catch (Exception e) {
-                log.error("상담 데이터 JSON 변환 실패", e);
-            }
-        }
-        
-        // 등록 상태 업데이트: CHATTING → REGISTERED
-        // CHATTING: 단순 채팅 중 (정보 미수집)
-        // REGISTERED: 정식 가입 완료 (정보 수집 완료)
-        student.setRegistrationStatus("REGISTERED");
-        
-        Student savedStudent = studentRepository.save(student);
-        
-        log.debug("학생 정보 저장 완료: studentId={}, name={}, registrationStatus={}", 
-                savedStudent.getStudentId(), savedStudent.getName(), savedStudent.getRegistrationStatus());
-        
-        return savedStudent;
-    }
 
     @Operation(
         summary = "학생 정보 수동 저장", 
@@ -175,8 +135,16 @@ public class GeminiController {
             Student student = studentRepository.findById(studentId)
                     .orElseThrow(() -> new RuntimeException("Student not found: " + studentId));
             
-            // 수동으로 입력된 정보로 학생 엔티티 업데이트
-            Student updatedStudent = updateStudentInfo(student, studentInfo);
+            // 공통 서비스를 사용하여 학생 정보 업데이트
+            Student updatedStudent = studentInfoUpdateService.updateStudentInfo(student, studentInfo);
+            
+            // 등록 상태 업데이트 (수동 저장 시에도 REGISTERED로 변경)
+            if (!"REGISTERED".equals(updatedStudent.getRegistrationStatus()) && 
+                !"INFO_COLLECTED".equals(updatedStudent.getRegistrationStatus())) {
+                updatedStudent.setRegistrationStatus("REGISTERED");
+            }
+            
+            updatedStudent = studentRepository.save(updatedStudent);
             
             log.info("학생 정보 수동 저장 완료: studentId={}", studentId);
             

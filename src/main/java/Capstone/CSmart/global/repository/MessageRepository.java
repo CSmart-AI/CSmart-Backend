@@ -14,6 +14,12 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     List<Message> findByStudentIdOrderBySentAtDesc(Long studentId, Pageable pageable);
     long countByStudentId(Long studentId);
     long countByStudentIdAndSenderType(Long studentId, String senderType);
+    
+    // 선생님이 보낸 메시지 조회 (senderType이 "teacher"이고 teacherId가 일치)
+    List<Message> findByTeacherIdAndSenderTypeOrderBySentAtDesc(Long teacherId, String senderType, Pageable pageable);
+    
+    // 선생님이 배정된 학생의 메시지 조회 (teacherId가 일치)
+    List<Message> findByTeacherIdOrderBySentAtDesc(Long teacherId, Pageable pageable);
 }
 
 

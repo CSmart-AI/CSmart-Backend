@@ -6,6 +6,7 @@ import Capstone.CSmart.global.domain.enums.StudentStatus;
 import Capstone.CSmart.global.repository.MessageRepository;
 import Capstone.CSmart.global.repository.StudentRepository;
 import Capstone.CSmart.global.service.gemini.GeminiService;
+import Capstone.CSmart.global.service.student.StudentInfoUpdateService;
 import Capstone.CSmart.global.web.dto.Kakao.KakaoMessageDTO;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ public class KakaoWebhookService {
     private final StudentRepository studentRepository;
     private final MessageRepository messageRepository;
     private final GeminiService geminiService;
+    private final StudentInfoUpdateService studentInfoUpdateService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -76,7 +78,11 @@ public class KakaoWebhookService {
             log.info("메시지 저장 완료: studentId={}, messageId={}", 
                      student.getStudentId(), savedMessage.getMessageId());
 
-            // 3. 첫 메시지인지 확인 (웰컴블록으로 학생정보 요청 후 첫 응답)
+            // 3. 첫 메시지 요약 기능 제거 (transfer 시에만 정보 요약)
+            // 첫 메시지 오자마자 요약하는 기능은 제거되었습니다.
+            // 학생 정보 요약은 transferToTeacher API 호출 시에만 수행됩니다.
+            
+            /* 첫 메시지 요약 기능 (주석 처리)
             long messageCount = messageRepository.countByStudentIdAndSenderType(
                     student.getStudentId(), "student");
             
@@ -86,6 +92,7 @@ public class KakaoWebhookService {
                 // 비동기로 첫 메시지 요약 수행 (웹훅 응답 지연 방지)
                 summarizeFirstMessageAsync(student, message.getUtterance());
             }
+            */
             
         } catch (Exception e) {
             log.error("메시지 처리 중 오류 발생: userId={}, error={}", 
@@ -97,7 +104,11 @@ public class KakaoWebhookService {
      * 첫 메시지를 비동기로 요약하여 학생 정보 추출
      * 웰컴블록으로 학생정보 요청 메시지를 받은 후 첫 메시지에 대해 Gemini API로 요약
      * 추출된 정보를 Student 엔티티의 실제 필드에 직접 저장
+     * 
+     * [주석 처리됨] 첫 메시지 오자마자 요약하는 기능은 제거되었습니다.
+     * 학생 정보 요약은 transferToTeacher API 호출 시에만 수행됩니다.
      */
+    /*
     @Async
     @Transactional
     public void summarizeFirstMessageAsync(Student student, String firstMessage) {
@@ -112,125 +123,14 @@ public class KakaoWebhookService {
                 return;
             }
             
-            // 추출된 정보를 Student 엔티티의 실제 필드에 직접 저장
-            boolean updated = false;
+            // 공통 서비스를 사용하여 학생 정보 업데이트
+            Student updatedStudent = studentInfoUpdateService.updateStudentInfo(student, extractedInfo);
             
-            // 이름 업데이트 (항상 업데이트 - Gemini가 추출한 이름이 더 정확할 수 있음)
-            if (extractedInfo.containsKey("name") && extractedInfo.get("name") != null) {
-                String extractedName = ((String) extractedInfo.get("name")).trim();
-                if (!extractedName.isEmpty()) {
-                    // 기존 이름과 다르거나 비어있으면 업데이트
-                    if (student.getName() == null || student.getName().isEmpty() || 
-                        !student.getName().equals(extractedName)) {
-                        student.setName(extractedName);
-                        updated = true;
-                        log.info("학생 이름 업데이트: studentId={}, 기존={}, 신규={}", 
-                                student.getStudentId(), student.getName(), extractedName);
-                    }
-                }
-            }
-            
-            // 나이 업데이트
-            if (extractedInfo.containsKey("age") && extractedInfo.get("age") != null) {
-                try {
-                    Integer extractedAge = ((Number) extractedInfo.get("age")).intValue();
-                    if (extractedAge > 0 && extractedAge < 150) { // 유효한 나이 범위 체크
-                        if (student.getAge() == null) {
-                            student.setAge(extractedAge);
-                            updated = true;
-                            log.info("학생 나이 업데이트: studentId={}, age={}", 
-                                    student.getStudentId(), extractedAge);
-                        }
-                    }
-                } catch (Exception e) {
-                    log.warn("나이 파싱 실패: studentId={}, age={}", 
-                            student.getStudentId(), extractedInfo.get("age"), e);
-                }
-            }
-            
-            // 전적 대학 업데이트
-            if (extractedInfo.containsKey("previousSchool") && extractedInfo.get("previousSchool") != null) {
-                String previousSchool = ((String) extractedInfo.get("previousSchool")).trim();
-                if (!previousSchool.isEmpty() && !"null".equalsIgnoreCase(previousSchool)) {
-                    if (student.getPreviousSchool() == null || student.getPreviousSchool().isEmpty()) {
-                        student.setPreviousSchool(previousSchool);
-                        updated = true;
-                        log.info("전적 대학 업데이트: studentId={}, previousSchool={}", 
-                                student.getStudentId(), previousSchool);
-                    }
-                }
-            }
-            
-            // 목표 대학 업데이트
-            if (extractedInfo.containsKey("targetUniversity") && extractedInfo.get("targetUniversity") != null) {
-                String targetUniversity = ((String) extractedInfo.get("targetUniversity")).trim();
-                if (!targetUniversity.isEmpty() && !"null".equalsIgnoreCase(targetUniversity)) {
-                    if (student.getTargetUniversity() == null || student.getTargetUniversity().isEmpty()) {
-                        student.setTargetUniversity(targetUniversity);
-                        updated = true;
-                        log.info("목표 대학 업데이트: studentId={}, targetUniversity={}", 
-                                student.getStudentId(), targetUniversity);
-                    }
-                }
-            }
-            
-            // 전화번호 업데이트
-            if (extractedInfo.containsKey("phoneNumber") && extractedInfo.get("phoneNumber") != null) {
-                String phoneNumber = ((String) extractedInfo.get("phoneNumber")).trim();
-                if (!phoneNumber.isEmpty() && !"null".equalsIgnoreCase(phoneNumber)) {
-                    if (student.getPhoneNumber() == null || student.getPhoneNumber().isEmpty()) {
-                        student.setPhoneNumber(phoneNumber);
-                        updated = true;
-                        log.info("전화번호 업데이트: studentId={}, phoneNumber={}", 
-                                student.getStudentId(), phoneNumber);
-                    }
-                }
-            }
-            
-            // 희망 전공 업데이트
-            if (extractedInfo.containsKey("desiredMajor") && extractedInfo.get("desiredMajor") != null) {
-                String desiredMajor = ((String) extractedInfo.get("desiredMajor")).trim();
-                if (!desiredMajor.isEmpty() && !"null".equalsIgnoreCase(desiredMajor)) {
-                    if (student.getDesiredMajor() == null || student.getDesiredMajor().isEmpty()) {
-                        student.setDesiredMajor(desiredMajor);
-                        updated = true;
-                        log.info("희망 전공 업데이트: studentId={}, desiredMajor={}", 
-                                student.getStudentId(), desiredMajor);
-                    }
-                }
-            }
-            
-            // 현재 학년 업데이트
-            if (extractedInfo.containsKey("currentGrade") && extractedInfo.get("currentGrade") != null) {
-                String currentGrade = ((String) extractedInfo.get("currentGrade")).trim();
-                if (!currentGrade.isEmpty() && !"null".equalsIgnoreCase(currentGrade)) {
-                    if (student.getCurrentGrade() == null || student.getCurrentGrade().isEmpty()) {
-                        student.setCurrentGrade(currentGrade);
-                        updated = true;
-                        log.info("현재 학년 업데이트: studentId={}, currentGrade={}", 
-                                student.getStudentId(), currentGrade);
-                    }
-                }
-            }
-            
-            // 희망 입학 학기 업데이트
-            if (extractedInfo.containsKey("desiredSemester") && extractedInfo.get("desiredSemester") != null) {
-                String desiredSemester = ((String) extractedInfo.get("desiredSemester")).trim();
-                if (!desiredSemester.isEmpty() && !"null".equalsIgnoreCase(desiredSemester)) {
-                    if (student.getDesiredSemester() == null || student.getDesiredSemester().isEmpty()) {
-                        student.setDesiredSemester(desiredSemester);
-                        updated = true;
-                        log.info("희망 입학 학기 업데이트: studentId={}, desiredSemester={}", 
-                                student.getStudentId(), desiredSemester);
-                    }
-                }
-            }
-            
-            // 업데이트된 필드가 있으면 저장
-            if (updated) {
-                studentRepository.save(student);
+            // 업데이트된 경우 저장
+            if (updatedStudent != null) {
+                studentRepository.save(updatedStudent);
                 log.info("첫 메시지 요약 완료 및 Student 필드 저장: studentId={}, 추출된 필드 수={}", 
-                        student.getStudentId(), extractedInfo.size());
+                        updatedStudent.getStudentId(), extractedInfo.size());
             } else {
                 log.info("첫 메시지 요약 완료: studentId={}, 업데이트할 필드 없음", 
                         student.getStudentId());
@@ -241,6 +141,7 @@ public class KakaoWebhookService {
                     student.getStudentId(), e);
         }
     }
+    */
 }
 
 

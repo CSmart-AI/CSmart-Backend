@@ -2,8 +2,12 @@ package Capstone.CSmart.global.web.controller;
 
 import Capstone.CSmart.global.apiPayload.ApiResponse;
 import Capstone.CSmart.global.apiPayload.code.status.SuccessStatus;
+import Capstone.CSmart.global.domain.entity.AiResponse;
 import Capstone.CSmart.global.domain.entity.Message;
+import Capstone.CSmart.global.domain.entity.Student;
+import Capstone.CSmart.global.repository.AiResponseRepository;
 import Capstone.CSmart.global.repository.MessageRepository;
+import Capstone.CSmart.global.repository.StudentRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +28,8 @@ import java.util.stream.Collectors;
 public class MessageController {
 
     private final MessageRepository messageRepository;
+    private final StudentRepository studentRepository;
+    private final AiResponseRepository aiResponseRepository;
 
     @Operation(summary = "전체 메시지 조회", description = "전체 메시지 이력 조회 (관리자용)")
     @GetMapping
@@ -90,30 +96,30 @@ public class MessageController {
         }
     }
 
-    @Operation(summary = "선생님별 메시지 조회", description = "특정 선생님이 관여한 메시지 이력 조회")
+    @Operation(summary = "선생님별 AI 응답 조회", description = "특정 선생님이 학생에게 보낸 AI 응답 이력 조회")
     @GetMapping("/teacher/{teacherId}")
     public ApiResponse<List<Map<String, Object>>> getMessagesByTeacher(
             @PathVariable Long teacherId,
             @RequestParam(defaultValue = "20") int limit) {
         
-        log.info("Get messages by teacher request: teacherId={}, limit={}", teacherId, limit);
+        log.info("Get AI responses by teacher request: teacherId={}, limit={}", teacherId, limit);
         
         try {
-            // 선생님이 보낸 메시지나 선생님이 배정된 학생의 메시지
-            List<Message> messages = messageRepository.findAll().stream()
-                    .filter(m -> teacherId.equals(m.getTeacherId()) || 
-                            (m.getTeacherId() != null && teacherId.equals(m.getTeacherId())))
-                    .limit(limit)
+            // 선생님이 배정된 학생들에게 보낸 AI 응답 조회 (모든 상태)
+            List<AiResponse> aiResponses = aiResponseRepository.findByTeacherIdOrderByGeneratedAtDesc(
+                    teacherId, PageRequest.of(0, limit))
+                    .getContent();
+            
+            List<Map<String, Object>> responseDTOs = aiResponses.stream()
+                    .map(this::convertAiResponseToMap)
                     .collect(Collectors.toList());
             
-            List<Map<String, Object>> messageDTOs = messages.stream()
-                    .map(this::convertToMap)
-                    .collect(Collectors.toList());
+            log.info("선생님 {}의 AI 응답 조회 완료: 총 {}개", teacherId, responseDTOs.size());
             
-            return ApiResponse.onSuccess(SuccessStatus.MESSAGE_OK, messageDTOs);
+            return ApiResponse.onSuccess(SuccessStatus.MESSAGE_OK, responseDTOs);
             
         } catch (Exception e) {
-            log.error("Failed to get messages by teacher: {}", teacherId, e);
+            log.error("Failed to get AI responses by teacher: {}", teacherId, e);
             return ApiResponse.onFailure("GET_MESSAGES_FAILED", e.getMessage(), null);
         }
     }
@@ -129,6 +135,34 @@ public class MessageController {
         map.put("senderType", message.getSenderType());
         map.put("sentAt", message.getSentAt());
         map.put("createdAt", message.getCreatedAt());
+        return map;
+    }
+
+    // AI 응답 DTO 변환 메서드
+    private Map<String, Object> convertAiResponseToMap(AiResponse aiResponse) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("responseId", aiResponse.getResponseId());
+        map.put("messageId", aiResponse.getMessageId());
+        map.put("studentId", aiResponse.getStudentId());
+        map.put("teacherId", aiResponse.getTeacherId());
+        map.put("recommendedResponse", aiResponse.getRecommendedResponse());
+        map.put("finalResponse", aiResponse.getFinalResponse());
+        map.put("status", aiResponse.getStatus() != null ? aiResponse.getStatus().toString() : null);
+        map.put("generatedAt", aiResponse.getGeneratedAt());
+        map.put("reviewedAt", aiResponse.getReviewedAt());
+        map.put("sentAt", aiResponse.getSentAt());
+        map.put("createdAt", aiResponse.getCreatedAt());
+        
+        // 학생의 원본 메시지도 포함
+        try {
+            Message message = messageRepository.findById(aiResponse.getMessageId()).orElse(null);
+            if (message != null) {
+                map.put("originalMessage", message.getContent());
+            }
+        } catch (Exception e) {
+            log.warn("Failed to fetch original message for messageId: {}", aiResponse.getMessageId(), e);
+        }
+        
         return map;
     }
 }
