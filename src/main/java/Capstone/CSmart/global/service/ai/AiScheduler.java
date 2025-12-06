@@ -5,6 +5,7 @@ import Capstone.CSmart.global.repository.AiResponseRepository;
 import Capstone.CSmart.global.repository.MessageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -12,6 +13,7 @@ import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Component
@@ -22,18 +24,32 @@ public class AiScheduler {
     private final MessageRepository messageRepository;
     private final AiResponseRepository aiResponseRepository;
     private final AiResponseService aiResponseService;
+    private final RedisTemplate<String, String> redisTemplate;
+    
+    private static final String SCHEDULER_LOCK_KEY = "ai_scheduler_processing";
+    private static final long SCHEDULER_LOCK_TTL_SECONDS = 600; // 10분 (스케줄러 실행 최대 시간)
 
     /**
-     * 10분마다 신규 메시지를 모아서 LangGraph 배치 처리
+     * 1분 30초마다 신규 메시지를 모아서 LangGraph 배치 처리
      * - 각 메시지를 개별적으로 처리
      * - 상담폼은 자동으로 건너뜀
      * - AI 응답이 없는 신규 메시지만 처리
      */
-    @Scheduled(fixedDelay = 600000)  // 10분 = 600,000ms
+    @Scheduled(fixedDelay = 90000)  // 1분 30초 = 90,000ms
     public void processPendingMessages() {
-        OffsetDateTime since = OffsetDateTime.now().minusMinutes(30);
+        // Redis 분산 락으로 중복 실행 방지
+        Boolean lockAcquired = redisTemplate.opsForValue().setIfAbsent(
+                SCHEDULER_LOCK_KEY, "processing", SCHEDULER_LOCK_TTL_SECONDS, TimeUnit.SECONDS);
+        
+        if (Boolean.FALSE.equals(lockAcquired)) {
+            log.warn("AI 스케줄러가 이미 실행 중입니다. 중복 실행 방지.");
+            return;
+        }
 
-        log.info("AI 스케줄러 시작: 최근 30분간 신규 메시지 개별 처리");
+        try {
+            OffsetDateTime since = OffsetDateTime.now().minusMinutes(30);
+
+            log.info("AI 스케줄러 시작: 최근 30분간 신규 메시지 개별 처리");
 
         // AI 응답이 없는 메시지만 필터링 (가장 최근 것만 확인)
         List<Message> inboundMessages = messageRepository.findAll().stream()
@@ -77,8 +93,13 @@ public class AiScheduler {
             }
         }
 
-        log.info("AI 스케줄러 완료: 처리={}, 스킵(상담폼)={}, 실패={}",
-                processedCount, skippedCount, failedCount);
+            log.info("AI 스케줄러 완료: 처리={}, 스킵(상담폼)={}, 실패={}",
+                    processedCount, skippedCount, failedCount);
+        } finally {
+            // 처리 완료 후 락 해제
+            redisTemplate.delete(SCHEDULER_LOCK_KEY);
+            log.debug("AI 스케줄러 락 해제");
+        }
     }
 }
 
